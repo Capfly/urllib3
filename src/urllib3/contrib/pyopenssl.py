@@ -425,6 +425,8 @@ class PyOpenSSLContext(object):
         self._ctx = OpenSSL.SSL.Context(self.protocol)
         self._options = 0
         self.check_hostname = False
+        self.check_dane = True
+        self.dane_tlsa_records = []
 
     @property
     def options(self):
@@ -475,6 +477,12 @@ class PyOpenSSLContext(object):
         protocols = [six.ensure_binary(p) for p in protocols]
         return self._ctx.set_alpn_protos(protocols)
 
+    def set_dane_enable(self, enable):
+        self.check_dane = enable
+
+    def add_tlsa_record(self, usage, selector, matching_type, data):
+        self.dane_tlsa_records.append((usage, selector, matching_type, data))
+
     def wrap_socket(
         self,
         sock,
@@ -492,6 +500,57 @@ class PyOpenSSLContext(object):
             cnx.set_tlsext_host_name(server_hostname)
 
         cnx.set_connect_state()
+
+# ********************************************************************************************************************
+        # traceback.print_stack()
+        # Check if we use dane
+        if self.check_dane:
+
+            from dns import message, query, rdatatype
+
+            # TODO check proto options
+            proto = 'tcp'
+            req = message.make_query('_' + str(sock.getpeername()[1]) + '._' + proto + '.' + server_hostname.decode('utf-8'),
+                                     rdatatype.TLSA, want_dnssec=True)
+
+            # TODO replace nameserver with system resolver
+            rsp = query.udp(req, '1.1.1.1')
+
+            if int.from_bytes(rsp.flags.to_bytes(2, "big"), "big") & 0x20 != 0:  # check if we have authenticated data
+                for record in rsp.answer:
+                    tpl = record.to_rdataset().to_text().split(' ')[-5:]
+
+                    if tpl[0].upper() != "TLSA":
+                        continue  # only go for tlsa records
+
+                    if len(tpl) == 5:
+                        try:
+                            self.dane_tlsa_records.append((int(tpl[1]),
+                                                           int(tpl[2]),
+                                                           int(tpl[3]),
+                                                           bytes.fromhex(tpl[4])))
+                        except ValueError:
+                            pass
+                    else:
+                        pass  # ignore bad tlsa record
+            else:
+                # TODO add exception & handling
+                raise Exception("DNSSEC failed: AD flag not set.")
+
+            ret = cnx.set_ctx_dane_enable()  # enable dane ctx
+            if ret != 1:
+                raise Exception("Could not enable DANE CTX.")  # TODO Exception handling
+
+            ret = cnx.set_dane_enable()  # enable dane
+            if ret != 1:
+                raise Exception("Could not enable DANR.")  # TODO Exception handling
+
+            # add all the tlsa records to be used
+            for record in self.dane_tlsa_records:
+                ret = cnx.dane_tlsa_add(*record)
+                if ret != 1:
+                    raise Exception("Could not add TLSA record.")  # TODO Exception handling
+# ********************************************************************************************************************
 
         while True:
             try:
