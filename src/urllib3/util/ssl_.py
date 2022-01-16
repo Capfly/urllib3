@@ -287,7 +287,12 @@ def create_urllib3_context(
     if not ssl_version or ssl_version == PROTOCOL_TLS:
         ssl_version = PROTOCOL_TLS_CLIENT
 
+    # print(hex(ssl.OPENSSL_VERSION_NUMBER), cert_reqs)
     context = SSLContext(ssl_version)
+
+    # TODO add flag if we want to check for dane
+    context.set_dane_enable(True)
+    # print(context)
 
     context.set_ciphers(ciphers or DEFAULT_CIPHERS)
 
@@ -490,6 +495,7 @@ def _ssl_wrap_socket_impl(sock, ssl_context, tls_in_tls, server_hostname=None):
         return SSLTransport(sock, ssl_context, server_hostname)
 
     if server_hostname:
+        # print("hier")
         return ssl_context.wrap_socket(sock, server_hostname=server_hostname)
     else:
         return ssl_context.wrap_socket(sock)
