@@ -290,9 +290,10 @@ def create_urllib3_context(
     # print(hex(ssl.OPENSSL_VERSION_NUMBER), cert_reqs)
     context = SSLContext(ssl_version)
 
-    # TODO add flag if we want to check for dane
-    context.set_dane_enable(True)
-    # print(context)
+    if IS_PYOPENSSL:
+        # TODO add flag if we want to check for dane
+        context.set_dane_enable(True)
+        # print(context)
 
     context.set_ciphers(ciphers or DEFAULT_CIPHERS)
 
