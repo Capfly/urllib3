@@ -517,6 +517,10 @@ class PyOpenSSLContext(object):
             rsp = query.udp(req, '1.1.1.1')
 
             if int.from_bytes(rsp.flags.to_bytes(2, "big"), "big") & 0x20 != 0:  # check if we have authenticated data
+
+                if len(rsp.answer) == 0:  # check if we have tlsa records
+                    raise Exception("No DANE TLSA record available for the requested resource.")
+
                 for record in rsp.answer:
                     tpl = record.to_rdataset().to_text().split(' ')[-5:]
 
