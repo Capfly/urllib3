@@ -425,7 +425,7 @@ class PyOpenSSLContext(object):
         self._ctx = OpenSSL.SSL.Context(self.protocol)
         self._options = 0
         self.check_hostname = False
-        self.check_dane = True
+        self.check_dane = False
         self.dane_tlsa_records = []
 
     @property
@@ -518,9 +518,6 @@ class PyOpenSSLContext(object):
 
             if int.from_bytes(rsp.flags.to_bytes(2, "big"), "big") & 0x20 != 0:  # check if we have authenticated data
 
-                if len(rsp.answer) == 0:  # check if we have tlsa records
-                    raise Exception("No DANE TLSA record available for the requested resource.")
-
                 for record in rsp.answer:
                     tpl = record.to_rdataset().to_text().split(' ')[-5:]
 
@@ -540,6 +537,9 @@ class PyOpenSSLContext(object):
             else:
                 # TODO add exception & handling
                 raise Exception("DNSSEC failed: AD flag not set.")
+
+            if len(self.dane_tlsa_records) == 0:  # Check if there have been valid TLSA records
+                raise Exception("No DANE TLSA record available for the requested resource.")
 
             ret = cnx.set_ctx_dane_enable()  # enable dane ctx
             if ret != 1:
