@@ -277,6 +277,9 @@ class HTTPConnection(_HTTPConnection, object):
         # After the if clause, to always have a closed body
         self.send(b"0\r\n\r\n")
 
+    def set_dane_enable(self, enable):
+        pass  # not implemented for http
+
 
 class HTTPSConnection(HTTPConnection):
     """
@@ -293,6 +296,7 @@ class HTTPSConnection(HTTPConnection):
     ssl_version = None
     assert_fingerprint = None
     tls_in_tls_required = False
+    check_dane = False
 
     def __init__(
         self,
@@ -401,6 +405,13 @@ class HTTPSConnection(HTTPConnection):
 
         context = self.ssl_context
         context.verify_mode = resolve_cert_reqs(self.cert_reqs)
+
+        try:
+            # set dane enable to the provided value (default is False)
+            context.set_dane_enable(self.check_dane)
+        except NameError:
+            # only implemented in contrib/pyopenssl so far...
+            print("DANE check not yet implemented for the currently used backend.")
 
         # Try to load OS default certs if none are given.
         # Works well on Windows (requires Python3.4+)
@@ -528,6 +539,9 @@ class HTTPSConnection(HTTPConnection):
 
         self.proxy_is_verified = ssl_context.verify_mode == ssl.CERT_REQUIRED
         return socket
+
+    def set_dane_enable(self, enable):
+        self.check_dane = enable
 
 
 def _match_hostname(cert, asserted_hostname):

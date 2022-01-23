@@ -908,6 +908,7 @@ class HTTPSConnectionPool(HTTPConnectionPool):
 
     scheme = "https"
     ConnectionCls = HTTPSConnection
+    check_dane = False
 
     def __init__(
         self,
@@ -957,6 +958,9 @@ class HTTPSConnectionPool(HTTPConnectionPool):
         self.ssl_version = ssl_version
         self.assert_hostname = assert_hostname
         self.assert_fingerprint = assert_fingerprint
+
+    def set_dane_enable(self, enable):
+        self.check_dane = enable
 
     def _prepare_conn(self, conn):
         """
@@ -1027,6 +1031,7 @@ class HTTPSConnectionPool(HTTPConnectionPool):
             **self.conn_kw
         )
 
+        conn.set_dane_enable(self.check_dane)
         return self._prepare_conn(conn)
 
     def _validate_conn(self, conn):
