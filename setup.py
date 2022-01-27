@@ -36,6 +36,8 @@ with codecs.open("CHANGES.rst", encoding="utf-8") as fp:
 
 version = VERSION
 
+
+
 setup(
     name="urllib3",
     version=version,
@@ -92,6 +94,13 @@ setup(
             "idna>=2.0.0",
             "certifi",
             "ipaddress; python_version=='2.7'",
+        ],
+        "dane": [
+            "pyOpenSSL>=0.14",
+            "cryptography>=1.3.4",
+            "dnspython>=2.2.0",
+            "idna>=2.0.0",
+            "certifi",
         ],
         "socks": ["PySocks>=1.5.6,<2.0,!=1.5.7"],
     },
