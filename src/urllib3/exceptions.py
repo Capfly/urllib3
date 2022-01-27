@@ -46,6 +46,10 @@ class SSLError(HTTPError):
 
     pass
 
+class DANEError(SSLError):
+    """Raised when DANE validation to verify SSL data was not successful..."""
+
+    pass
 
 class ProxyError(HTTPError):
     """Raised when the connection to a proxy fails."""
