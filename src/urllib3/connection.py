@@ -411,7 +411,8 @@ class HTTPSConnection(HTTPConnection):
             context.set_dane_enable(self.check_dane)
         except (AttributeError, NameError):
             # only implemented in contrib/pyopenssl so far...
-            print("Warning! DANE check not yet implemented for the currently used backend: Ignoring!")
+            if self.check_dane: # Just print the warning if we actually wanted to check dane
+                print("Warning! DANE check not yet implemented for the currently used backend: Ignoring!")
 
         # Try to load OS default certs if none are given.
         # Works well on Windows (requires Python3.4+)
