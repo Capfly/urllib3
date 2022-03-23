@@ -506,58 +506,53 @@ class PyOpenSSLContext(object):
         # Check if we use dane
         # Note: only available with the secure config installation of urllib3
         if self.check_dane:
-
             try:
-                from dns import message, query, rdatatype
                 from ..exceptions import DANEError
+                from .dnssec.secdns import get_validated_record
+                from dns import rdatatype, resolver
 
-                proto = 'tcp' if sock.type == SOCK_STREAM else 'tcp'
-                req = message.make_query('_' + str(sock.getpeername()[1]) + '._' + proto + '.' + server_hostname.decode('utf-8'),
-                                         rdatatype.TLSA, want_dnssec=True)
+                try:
+                    proto = 'tcp' if sock.type == SOCK_STREAM else 'udp'
+                    secdns = get_validated_record('_' + str(sock.getpeername()[1]) + '._' + proto + '.' + server_hostname.decode('utf-8'), rdatatype.TLSA)
+                    if secdns != False:
+                        # success
+                        for record in secdns:
+                            tpl = record.to_text().split(' ')[-5:]
 
-                # TODO replace nameserver with system resolver
-                rsp = query.udp(req, '1.1.1.1')
-
-                if int.from_bytes(rsp.flags.to_bytes(2, "big"), "big") & 0x20 != 0:  # check if we have authenticated data
-
-                    for record in rsp.answer:  # TODO check if we follow cnames
-                        tpl = record.to_rdataset().to_text().split(' ')[-5:]
-
-                        if tpl[0].upper() != "TLSA":
-                            continue  # only go for tlsa records
-
-                        if len(tpl) == 5:  # TODO find a better way to check TLSA record validity
                             try:
-                                self.dane_tlsa_records.append((int(tpl[1]),
+                                self.dane_tlsa_records.append((int(tpl[0]),
+                                                               int(tpl[1]),
                                                                int(tpl[2]),
-                                                               int(tpl[3]),
-                                                               bytes.fromhex(tpl[4])))
-                            except ValueError:  # ignore record if it was invalid
-                                pass
-                        else:
-                            pass  # ignore bad tlsa records
-                else:
-                    # TODO add exception & handling
-                    raise DANEError("DNSSEC failed: AD flag not set.")
+                                                               bytes.fromhex(tpl[3])))
+                            except ValueError:
+                                pass # Ignore if call was invalid
+                    else:
+                        raise DANEError("DNSSEC validation failed.")
 
-                if len(self.dane_tlsa_records) == 0:  # Check if there have been valid TLSA records
-                    raise DANEError("No DANE TLSA record available for the requested resource.")
 
-                ret = cnx.set_ctx_dane_enable()  # enable dane ctx
-                if ret != 1:
-                    raise DANEError("Could not enable DANE CTX.")  # TODO Exception handling
+                    if len(self.dane_tlsa_records) == 0:  # Check if there have been valid TLSA records
+                        raise DANEError("No DANE TLSA record available for the requested resource.")
 
-                ret = cnx.set_dane_enable()  # enable dane
-                if ret != 1:
-                    raise DANEError("Could not enable DANR.")  # TODO Exception handling
-
-                # add all the tlsa records to be used
-                for record in self.dane_tlsa_records:
-                    ret = cnx.dane_tlsa_add(*record)
+                    ret = cnx.set_ctx_dane_enable()  # enable dane ctx
                     if ret != 1:
-                        raise DANEError("Could not add TLSA record.")  # TODO Exception handling
+                        raise DANEError("Could not enable DANE CTX.")
+
+                    ret = cnx.set_dane_enable()  # enable dane
+                    if ret != 1:
+                        raise DANEError("Could not enable DANE.")
+
+                    # add all the tlsa records to be used
+                    for record in self.dane_tlsa_records:
+                        ret = cnx.dane_tlsa_add(*record)
+                        if ret != 1:
+                            raise DANEError("Could not add TLSA record.")
+
+                except resolver.NXDOMAIN:
+                    raise DANEError("The requested domain has no TLSA records.")
+
             except ImportError:
                 raise DANEError("dns module is not available. Please install urllib3 with the dane configuration.")
+
 
 # ********************************************************************************************************************
 
